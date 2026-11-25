@@ -104,9 +104,11 @@ function Logo({ name }: { name?: boolean }) {
 function MarketStatus() {
   const services = usePipelineServices();
   if (services.isPending) return <Skeleton className="h-5 w-20" />;
-  const ing = services.data?.items.find((s) => s.key === 'ingestion');
-  const status = ing?.status ?? 'down';
-  const label = status === 'up' ? 'Streaming' : status === 'degraded' ? 'Degraded' : 'Halted';
+  // A failed refresh keeps the previous data in the query cache; never present that stale status as live.
+  const offline = services.isError;
+  const ing = offline ? undefined : services.data?.items.find((s) => s.key === 'ingestion');
+  const status = offline ? 'down' : (ing?.status ?? 'down');
+  const label = offline ? 'Offline' : status === 'up' ? 'Streaming' : status === 'degraded' ? 'Degraded' : 'Halted';
   const why = services.isError
     ? `Pipeline status unavailable: ${services.error.message}`
     : ing

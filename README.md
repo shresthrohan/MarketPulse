@@ -202,40 +202,39 @@ the running stack. Benchmark events are real stored events labelled `source=benc
 
 ## Test results
 
-Final verification on 2026-11-25 (Windows 11, Docker Desktop, WSL2 VM with 22 vCPU / 7.5 GB) after the
-[technical audit](docs/audit.md), starting from `docker compose down -v` then `docker compose up -d --build --wait`:
-every service healthy, `migrate` and `kafka-init` exited 0, seed wrote 20 instruments and one year of history.
+Final verification on 2026-11-25 (Windows 11, Docker Desktop, WSL2 VM with 22 vCPU / 7.5 GB), with the simulator
+and the live Binance feed running (`PROVIDERS=simulator,binance`):
 
 | Suite | Result |
 |---|---|
-| `alembic check` | no drift |
-| Backend unit + integration (`tests/`) | 44 passed (stable over 14 consecutive runs after the WebSocket cleanup fix) |
-| Processing unit + end-to-end (`processing/tests`) | 46 passed |
-| Ingestion unit (incl. Finnhub mocks) | 33 passed |
-| Seed generator | 6 passed |
+| `alembic check` (migrations 0001 + 0002, upgrade of a populated database, downgrade/upgrade round trip) | no drift |
+| Backend unit + integration (`tests/`) | 47 passed |
+| Processing unit + end-to-end (`processing/tests`) | 50 passed |
+| Ingestion unit (simulator, Binance and Finnhub with mocked sockets/HTTP, provider configuration) | 65 passed |
+| Seed generator + Binance kline mapping | 8 passed |
 | Spark job | 9 passed |
 | Frontend `tsc --noEmit` / Vitest / `vite build` | clean / 37 passed / built |
 | Ruff (E, F, W, B, UP) on all Python | clean |
-| Failure drills | 7/7 passed ([report](docs/failure-drills.md)) |
+| Failure drills (with 20 simulated + 5 live instruments) | 7/7 passed |
 | Seeded-fault checks | every seeded fault caught ([table](docs/architecture.md#verification)) |
+| Production configuration from a clean clone (HTTPS, WSS, exposure, persistence, crash recovery, backup/restore, replay, offline UI) | all passed ([details](docs/deployment.md#verified)) |
 
-Also checked by hand: the browser UI recovered from a backend container recreate without a page reload (live updates
-resumed about 3 s after the backend was healthy again).
+CI runs the same suites on every push (badge above).
 
 ### Benchmark summary
 
-From [docs/benchmark.md](docs/benchmark.md): one run on the final build, on a settled stack (no component restarted in
-the previous 2 minutes, live simulator traffic still flowing); the report records the machine and every method.
+From [docs/benchmark.md](docs/benchmark.md): one run on the final build, settled stack, simulator and Binance feed
+running; the report records the machine, the conditions and every method.
 
 | Metric | Measured |
 |---|---|
-| Ingestion throughput (producer → Kafka, acks=all), 20,000-event burst | 82,531 events/s |
-| Processing throughput (Kafka → validated → PostgreSQL + Redis + derived topics) | 9,686 events/s wall-clock (10,043 over the processed_at span) |
+| Ingestion throughput (producer → Kafka, acks=all), 20,000-event burst | 67,956 events/s |
+| Processing throughput (Kafka → validated → PostgreSQL + Redis + derived topics) | 5,920 events/s wall-clock (6,437 over the processed_at span) |
 | Event accounting | 20,000 produced = 20,000 stored, 0 rejected, 0 retried |
-| Steady-state end-to-end latency (live traffic, 24 events/s, 1,467 events) | p50 30 ms · p95 54 ms · p99 65 ms · max 67 ms |
-| API p50 / p95 per endpoint | 2–25 ms / 3–26 ms, 0 errors |
-| Key queries (EXPLAIN ANALYZE) | 0.10–1.9 ms, index / chunk scans |
+| Steady-state end-to-end latency (live traffic, 27 events/s, 1,603 events) | p50 33 ms · p95 56 ms · p99 70 ms · max 75 ms |
+| API p50 / p95 per endpoint | 5–31 ms / 6–62 ms, 0 errors |
+| Key queries (EXPLAIN ANALYZE) | 0.1–1.9 ms, index / chunk scans |
 
-The burst also reports backlog-drain latency (every event of the burst queued at once). That is a different quantity
-from the steady-state latency above, and the two should not be compared. Figures depend on host load and are not
-comparable across runs taken under different conditions.
+The burst also reports backlog-drain latency (every event of the burst queued at once), a different quantity from the
+steady-state latency above. Figures depend on the build and host load and are not comparable across runs taken under
+different conditions.

@@ -403,7 +403,9 @@ def run(args: argparse.Namespace) -> dict:
     except psycopg.OperationalError as exc:
         sys.exit(f"database unreachable at {urlsplit(dsn).hostname}: {exc}")
     with conn:
-        ids_by_symbol = dict(conn.execute("SELECT symbol, id FROM instruments ORDER BY symbol").fetchall())
+        # Synthetic benchmark events go only to simulated instruments: never fake data into a live instrument.
+        ids_by_symbol = dict(conn.execute(
+            "SELECT symbol, id FROM instruments WHERE coalesce(data_mode, 'simulated') = 'simulated' ORDER BY symbol").fetchall())
         if not ids_by_symbol:
             sys.exit("instruments table is empty; run the migrate/seed step first")
         symbols = list(ids_by_symbol)

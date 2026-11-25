@@ -224,14 +224,29 @@ labels each row LIVE or SIM whenever both kinds are present.
   back to the simulator and labels the data SIMULATED.
 - **Finnhub → simulator:** same procedure in reverse.
 
-## Verified (locally and in CI)
+## Verified
 
-- Clean checkout → `docker compose up --build --wait` → all suites green (README, "Test results").
-- Production overlay boots behind HTTPS with `PUBLIC_HOST=localhost`; only 80/443 published; WSS delivers live
-  quotes; runtime images carry no tests.
-- Data survives `down`/`up` and container restarts (PostgreSQL, Redis, Kafka offsets); services restart after
-  crashes; graceful shutdown; failure drills for Redis, PostgreSQL, Kafka, processor and backend restarts.
-- Backup → restore check, and a live restore.
+Run on 2026-11-25 from a **fresh clone of the commit** (separate directory, separate Compose project), using the
+production overlay with `PUBLIC_HOST=localhost` on Docker Desktop (WSL2):
+
+| Check | Result |
+|---|---|
+| Clean checkout → `up -d --build --wait` | all services healthy in 71 s; only Caddy publishes ports (80, 443) |
+| HTTPS / redirect / headers | `/api/health` ok over HTTPS; HTTP → HTTPS 308; HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` present |
+| Exposure | API (8000), nginx (8080), Redis (6379), Kafka (9092) unreachable from the host; MarketPulse's PostgreSQL unpublished (a separate local PostgreSQL service owned port 5432 on the test machine) |
+| CORS / WebSocket | no CORS grant for a foreign origin; WSS delivered a live BTCUSDT quote and a simulated SPY quote |
+| Runtime images | backend 507 MB, processing 218 MB, ingestion 207 MB; no pytest, no tests |
+| Graceful stop | exit code 0 for processing, ingestion, backend, frontend, PostgreSQL, Redis, Caddy; Kafka 143 (JVM's normal SIGTERM exit after a controlled shutdown) |
+| Persistence | after `down` + `up`: events, a watchlist and Kafka committed offsets (lag 0 on all 6 partitions) all retained; processing resumed from the committed offsets |
+| Crash recovery | the processor's process terminated inside the container → Docker restarted it (restart count 0 → 1) → healthy again |
+| Backup / restore | 5.5 MB dump; non-destructive restore check printed matching counts; `--live` restore returned the database to the dump (a watchlist created after the dump was gone), every service healthy afterwards |
+| Replay after restore | consumer group reset to the dump time: the 1,623 events the restore had removed came back from Kafka, 0 duplicate event IDs |
+| UI when the backend is down | header switches to OFFLINE within ~11 s, panels show "Refresh failed — showing data from <time>", WebSocket indicator amber; after the backend returns everything recovers within ~20 s without a page reload |
+
+`pg_dump` prints "circular foreign-key constraints" warnings for TimescaleDB's catalog tables; they are expected
+and harmless for full dumps restored with the procedure above.
+
+The CI job `production-config` repeats the HTTPS, WSS, exposure and runtime-image checks on every push.
 
 Not verified: a deployment on a public cloud host with a real Let's Encrypt certificate (no server was
-provisioned). The production-config job exercises everything except the public certificate issuance.
+provisioned by choice). Everything above except public certificate issuance is exercised.
