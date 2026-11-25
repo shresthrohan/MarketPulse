@@ -1,0 +1,15 @@
+# HTTPS edge. PUBLIC_HOST is a public DNS name (Let's Encrypt certificate, HTTP->HTTPS redirect)
+# or "localhost" (certificate from Caddy's local CA, for testing the production stack on a laptop).
+{
+	admin off
+}
+
+{$PUBLIC_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# nginx serves the UI and proxies /api and /ws to FastAPI; Caddy upgrades WebSockets transparently.
+	reverse_proxy frontend:80
+}

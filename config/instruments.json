@@ -1,0 +1,22 @@
+[
+  {"symbol": "AAPL", "company_name": "Apple Inc.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 225.0, "volatility": 0.28, "factor_loading": 0.65, "tick_volume": 900},
+  {"symbol": "MSFT", "company_name": "Microsoft Corp.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 420.0, "volatility": 0.25, "factor_loading": 0.65, "tick_volume": 600},
+  {"symbol": "NVDA", "company_name": "NVIDIA Corp.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 135.0, "volatility": 0.50, "factor_loading": 0.60, "tick_volume": 2500},
+  {"symbol": "AMZN", "company_name": "Amazon.com Inc.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 200.0, "volatility": 0.32, "factor_loading": 0.60, "tick_volume": 800},
+  {"symbol": "GOOGL", "company_name": "Alphabet Inc. Class A", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 175.0, "volatility": 0.30, "factor_loading": 0.60, "tick_volume": 700},
+  {"symbol": "META", "company_name": "Meta Platforms Inc.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 560.0, "volatility": 0.38, "factor_loading": 0.55, "tick_volume": 400},
+  {"symbol": "TSLA", "company_name": "Tesla Inc.", "exchange": "NASDAQ", "asset_type": "equity", "currency": "USD", "base_price": 250.0, "volatility": 0.60, "factor_loading": 0.45, "tick_volume": 1500},
+  {"symbol": "JPM", "company_name": "JPMorgan Chase & Co.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 230.0, "volatility": 0.22, "factor_loading": 0.60, "tick_volume": 500},
+  {"symbol": "V", "company_name": "Visa Inc. Class A", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 290.0, "volatility": 0.20, "factor_loading": 0.55, "tick_volume": 350},
+  {"symbol": "XOM", "company_name": "Exxon Mobil Corp.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 115.0, "volatility": 0.24, "factor_loading": 0.40, "tick_volume": 700},
+  {"symbol": "JNJ", "company_name": "Johnson & Johnson", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 155.0, "volatility": 0.16, "factor_loading": 0.35, "tick_volume": 450},
+  {"symbol": "WMT", "company_name": "Walmart Inc.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 85.0, "volatility": 0.18, "factor_loading": 0.40, "tick_volume": 900},
+  {"symbol": "PG", "company_name": "Procter & Gamble Co.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 165.0, "volatility": 0.15, "factor_loading": 0.35, "tick_volume": 400},
+  {"symbol": "KO", "company_name": "Coca-Cola Co.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 63.0, "volatility": 0.14, "factor_loading": 0.35, "tick_volume": 800},
+  {"symbol": "BAC", "company_name": "Bank of America Corp.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 42.0, "volatility": 0.28, "factor_loading": 0.60, "tick_volume": 2000},
+  {"symbol": "DIS", "company_name": "Walt Disney Co.", "exchange": "NYSE", "asset_type": "equity", "currency": "USD", "base_price": 100.0, "volatility": 0.30, "factor_loading": 0.50, "tick_volume": 600},
+  {"symbol": "SPY", "company_name": "SPDR S&P 500 ETF Trust", "exchange": "NYSE Arca", "asset_type": "etf", "currency": "USD", "base_price": 590.0, "volatility": 0.14, "factor_loading": 0.97, "tick_volume": 3000},
+  {"symbol": "QQQ", "company_name": "Invesco QQQ Trust", "exchange": "NASDAQ", "asset_type": "etf", "currency": "USD", "base_price": 510.0, "volatility": 0.18, "factor_loading": 0.92, "tick_volume": 1800},
+  {"symbol": "DIA", "company_name": "SPDR Dow Jones Industrial Average ETF", "exchange": "NYSE Arca", "asset_type": "etf", "currency": "USD", "base_price": 435.0, "volatility": 0.13, "factor_loading": 0.90, "tick_volume": 300},
+  {"symbol": "IWM", "company_name": "iShares Russell 2000 ETF", "exchange": "NYSE Arca", "asset_type": "etf", "currency": "USD", "base_price": 225.0, "volatility": 0.22, "factor_loading": 0.85, "tick_volume": 1200}
+]

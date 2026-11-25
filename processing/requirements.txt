@@ -1,0 +1,4 @@
+confluent-kafka==2.6.1
+psycopg[binary]==3.2.3
+redis==5.2.1
+psutil==6.1.1

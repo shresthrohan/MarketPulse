@@ -1,0 +1,39 @@
+{
+  "name": "marketpulse-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "1.1",
+    "@radix-ui/react-slot": "1.1",
+    "@radix-ui/react-tabs": "1.1",
+    "@radix-ui/react-tooltip": "1.1",
+    "@tanstack/react-query": "5.62",
+    "class-variance-authority": "0.7",
+    "clsx": "2.1",
+    "lightweight-charts": "4.2",
+    "lucide-react": "0.468",
+    "react": "18.3",
+    "react-dom": "18.3",
+    "react-router-dom": "6.30",
+    "sonner": "1.7",
+    "tailwind-merge": "3.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1",
+    "@types/react": "18.3",
+    "@types/react-dom": "18.3",
+    "@vitejs/plugin-react": "4.7",
+    "tailwindcss": "4.1",
+    "typescript": "5.9",
+    "vite": "6.4",
+    "vitest": "3.2"
+  }
+}

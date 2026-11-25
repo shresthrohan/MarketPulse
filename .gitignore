@@ -1,0 +1,13 @@
+.env
+.env.production
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.playwright-mcp/
+node_modules/
+frontend/dist/
+.venv/
+backups/
+spark/output/
+spark/checkpoint/

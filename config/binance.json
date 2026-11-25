@@ -1,0 +1,7 @@
+[
+  {"symbol": "BTCUSDT", "company_name": "Bitcoin / TetherUS", "exchange": "Binance", "asset_type": "crypto", "currency": "USDT"},
+  {"symbol": "ETHUSDT", "company_name": "Ethereum / TetherUS", "exchange": "Binance", "asset_type": "crypto", "currency": "USDT"},
+  {"symbol": "SOLUSDT", "company_name": "Solana / TetherUS", "exchange": "Binance", "asset_type": "crypto", "currency": "USDT"},
+  {"symbol": "BNBUSDT", "company_name": "BNB / TetherUS", "exchange": "Binance", "asset_type": "crypto", "currency": "USDT"},
+  {"symbol": "XRPUSDT", "company_name": "XRP / TetherUS", "exchange": "Binance", "asset_type": "crypto", "currency": "USDT"}
+]

@@ -1,0 +1,226 @@
+name: marketpulse
+
+# Local development and CI stack: `docker compose up -d --build`.
+# Production adds docker-compose.prod.yml on top (HTTPS edge, runtime images, limits): see docs/deployment.md.
+# Images are pinned by digest so the same commit always builds and runs the same bits.
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "5"}  # bounded disk use on long-running hosts
+
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+x-backend-env: &backend-env
+  <<: *common-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?set in .env}:${POSTGRES_PASSWORD:?set in .env}@postgres:5432/${POSTGRES_DB:-marketpulse}
+  INSTRUMENTS_FILE: /srv/config/instruments.json
+  BINANCE_INSTRUMENTS_FILE: /srv/config/binance.json
+  CONSUMER_GROUP: marketpulse-processor
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080}
+  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-1200}
+  WS_MAX_CONNECTIONS: ${WS_MAX_CONNECTIONS:-200}
+  WS_MAX_PER_CLIENT: ${WS_MAX_PER_CLIENT:-20}
+  WS_QUEUE_SIZE: ${WS_QUEUE_SIZE:-256}
+  WATCHLIST_MAX: ${WATCHLIST_MAX:-50}
+
+x-worker-health: &worker-health
+  # The service touches /tmp/healthy from its main loop; a stalled loop turns the container unhealthy.
+  test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/healthy') < 30 else 1)"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+
+services:
+  postgres:
+    image: timescale/timescaledb:2.17.2-pg16@sha256:4e459e217f00cbb09920c34d245501e63427e6767a495de57ce76823ff280f12
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-marketpulse}
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    stop_grace_period: 30s
+    logging: *logging
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    # AOF so the latest-quote cache survives restarts (the simulator resumes from it); the processor
+    # rebuilds anything missing from PostgreSQL.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    logging: *logging
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.8.1@sha256:22c4bea38875408e8f9fe52aca8e3a6ee67f9aa0090db59af99a2f6647558db5
+    environment:
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: f4GQ2E6tQlKK5vimUxF9PQ  # fixed so the persisted log directory is reused across restarts
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+    volumes: [kafkadata:/var/lib/kafka/data]  # topics and consumer offsets survive restarts
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+    stop_grace_period: 30s  # controlled shutdown flushes logs and hands off cleanly
+    logging: *logging
+    restart: unless-stopped
+
+  kafka-init:
+    image: apache/kafka:3.8.1@sha256:22c4bea38875408e8f9fe52aca8e3a6ee67f9aa0090db59af99a2f6647558db5
+    depends_on:
+      kafka: {condition: service_healthy}
+    volumes: ["./infrastructure/kafka/create-topics.sh:/create-topics.sh:ro"]
+    entrypoint: ["/bin/sh", "/create-topics.sh"]
+    logging: *logging
+    restart: "no"
+
+  migrate:
+    build: {context: ., dockerfile: infrastructure/docker/backend.Dockerfile, target: test}
+    image: marketpulse-backend
+    command: ["sh", "-c", "alembic upgrade head && python /srv/scripts/seed_data.py"]
+    environment:
+      <<: *backend-env
+      SEED_RANDOM_SEED: ${SEED_RANDOM_SEED:-42}
+      # The seed decides which instruments exist and where their history comes from.
+      PROVIDERS: ${PROVIDERS:-simulator}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      BINANCE_REST_URL: ${BINANCE_REST_URL:-https://api.binance.com}
+    depends_on:
+      postgres: {condition: service_healthy}
+    logging: *logging
+    restart: "no"
+
+  ingestion:
+    build: {context: ., dockerfile: infrastructure/docker/ingestion.Dockerfile, target: test}
+    image: marketpulse-ingestion
+    environment:
+      <<: *common-env
+      RAW_TOPIC: market.raw
+      INSTRUMENTS_FILE: /srv/config/instruments.json
+      BINANCE_INSTRUMENTS_FILE: /srv/config/binance.json
+      PROVIDERS: ${PROVIDERS:-simulator}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      FINNHUB_POLL_INTERVAL_S: ${FINNHUB_POLL_INTERVAL_S:-30}
+      BINANCE_WS_URL: ${BINANCE_WS_URL:-wss://stream.binance.com:9443}
+      SIM_SEED: ${SIM_SEED:-}
+      SIM_SPEED: ${SIM_SPEED:-1}
+      SIM_INTERVAL_MS: ${SIM_INTERVAL_MS:-500}
+      SIM_TICK_PROBABILITY: ${SIM_TICK_PROBABILITY:-0.6}
+      SIM_FAULT_RATE: ${SIM_FAULT_RATE:-0.005}
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    healthcheck: *worker-health
+    stop_grace_period: 15s
+    logging: *logging
+    restart: unless-stopped
+
+  processing:
+    build: {context: ., dockerfile: infrastructure/docker/processing.Dockerfile, target: test}
+    image: marketpulse-processing
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:?set in .env}:${POSTGRES_PASSWORD:?set in .env}@postgres:5432/${POSTGRES_DB:-marketpulse}
+      CONSUMER_GROUP: marketpulse-processor
+      ROLLING_WINDOW: ${ROLLING_WINDOW:-20}
+      BATCH_MAX: ${BATCH_MAX:-500}
+      MAX_FUTURE_SKEW_S: ${MAX_FUTURE_SKEW_S:-30}
+      MAX_EVENT_AGE_H: ${MAX_EVENT_AGE_H:-24}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+      ERROR_RETENTION_DAYS: ${ERROR_RETENTION_DAYS:-30}
+      METRIC_RETENTION_DAYS: ${METRIC_RETENTION_DAYS:-7}
+      BAR_1M_RETENTION_DAYS: ${BAR_1M_RETENTION_DAYS:-90}
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck: *worker-health
+    stop_grace_period: 30s  # finishes the in-flight batch, closes the consumer, flushes the producer
+    logging: *logging
+    restart: unless-stopped
+
+  backend:
+    build: {context: ., dockerfile: infrastructure/docker/backend.Dockerfile, target: test}
+    image: marketpulse-backend
+    environment: *backend-env
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 15s
+    logging: *logging
+    restart: unless-stopped
+
+  frontend:
+    build: {context: ., dockerfile: infrastructure/docker/frontend.Dockerfile, target: runtime}
+    image: marketpulse-frontend
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    logging: *logging
+    restart: unless-stopped
+
+  # Optional advanced mode (`docker compose --profile spark up spark`): 1-minute VWAP bars
+  # from market.processed with Spark Structured Streaming. The core pipeline never needs it.
+  spark:
+    image: apache/spark:3.5.3-python3@sha256:d0f5d63bfbbffdbec08debb4911554ba671a2fa7398374db8db314d80328f576
+    profiles: ["spark"]
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PROCESSED_TOPIC: market.processed
+    volumes:
+      - ./spark:/opt/marketpulse
+    command:
+      - /opt/spark/bin/spark-submit
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3
+      - --conf
+      - spark.jars.ivy=/tmp/.ivy2
+      - /opt/marketpulse/structured_streaming.py
+    logging: *logging
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
+  kafkadata:
