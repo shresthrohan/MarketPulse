@@ -7,6 +7,12 @@ Kafka, a stream processor validates, deduplicates and stores them in PostgreSQL/
 state, and a FastAPI backend exposes REST + WebSocket APIs to an institutional-style React terminal with analytics,
 data-quality monitoring and pipeline observability.
 
+
+
+https://github.com/user-attachments/assets/2d691831-2f9c-4234-b20f-559decd844b1
+
+
+
 > **Data honesty.** Two kinds of data, never mixed and always labelled:
 > - **Simulated** US equities/ETFs from a built-in exchange simulator (geometric Brownian motion with a market
 >   factor). Ticker symbols are real; these prices are not market prices. Labelled SIMULATED / SIM.
